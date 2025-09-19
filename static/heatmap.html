@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>車両ヒートマップ</title>
+  <!-- CSS -->
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      background: #f4f6f9;
+    }
+    #map { width: 100%; height: 600px; }
+    #controls {
+      background: #fff;
+      padding: 15px 20px;
+      margin: 15px auto;
+      width: 90%;
+      max-width: 900px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+    }
+    #controls label { font-weight: bold; margin-right: 5px; }
+    select, input, button {
+      padding: 6px 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { background: #0056b3; }
+  </style>
+  <!-- CSSここまで -->
+</head>
+<body>
+
+  <div id="controls">
+    <label for="vehicleSelect">車両種類:</label>
+    <select id="vehicleSelect" onchange="updateHeatmap(this.value)">
+      <option value="All">All</option>
+    </select>
+    <label for="start">開始:</label>
+    <input type="datetime-local" id="start">
+    <label for="end">終了:</label>
+    <input type="datetime-local" id="end">
+    <button onclick="applyFilter()">適用</button>
+  </div>
+  <div id="map"></div>
+
+  <script>
+    const GOOGLE_MAPS_API_KEY="{{google_maps_api_key}}";
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key={{google_maps_api_key}}&libraries=visualization&callback=initMap" async defer></script>
+
+
+  <script>
+    let map, heatmap, allEvents = [];
+
+    async function fetchEvents(start = null, end = null) {
+      let url = "/get_events";
+      if (start && end) {
+        url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      allEvents = data;
+      updateDropdown(data);
+      updateHeatmap(document.getElementById("vehicleSelect").value);
+    }
+
+    function updateDropdown(data) {
+      const select = document.getElementById("vehicleSelect");
+      const names = [...new Set(data.map(e => e.name))];
+      select.innerHTML = "<option value='All'>All</option>";
+      names.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+
+    function updateHeatmap(vehicleType) {
+      let filtered = allEvents;
+      if (vehicleType !== "All") {
+        filtered = allEvents.filter(e => e.name === vehicleType);
+      }
+      const heatmapData = filtered.map(e =>
+        new google.maps.LatLng(e.location.lat, e.location.lon)
+      );
+      heatmap.setData(heatmapData);
+    }
+
+    function applyFilter() {
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      fetchEvents(start, end);
+    }
+
+    async function initMap() {
+      // マップとヒートマップの初期化
+      map=new google.maps.Map(document.getElementById("map"),{
+        zoom: 16,
+        center: { lat: 34.702485, lng: 135.495951 }, // 大阪駅
+      });
+
+      heatmap = new google.maps.visualization.HeatmapLayer({
+        data: [],
+        map: map
+      });
+
+      // イベント取得
+      await fetchEvents();
+    }
+
+    window.initMap=initMap;
+  </script>
+</body>
+</html>

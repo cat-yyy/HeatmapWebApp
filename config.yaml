@@ -1,0 +1,9 @@
+#左がkey,右がvalue
+
+##DBのカラム名
+database_columns:
+  id: "id"
+  pushed_timestamp: "pushed_timestamp"
+  name: "name"
+  location_lat: "location_lat"
+  location_lon: "location_lon"
