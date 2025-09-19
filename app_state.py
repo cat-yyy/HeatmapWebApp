@@ -28,7 +28,7 @@ class AppState:
     google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY")
 
     def __init__(self):
-        self._db_config=RAILWAY_DB_CONFIG
+        self._db_config=MAMP_DB_CONFIG
         #スレッドロックのためのカギを作成
         self.lock = threading.Lock()
 
