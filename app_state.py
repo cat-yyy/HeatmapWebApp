@@ -46,6 +46,8 @@ class AppState:
         with self.lock:
             if self.db_config!=MAMP_DB_CONFIG:
                 self.db_config=MAMP_DB_CONFIG #setter呼び出し
+                print("DB mode is TEST")
             else:
                 self.db_config=RAILWAY_DB_CONFIG #setter呼び出し
+                print("DB mode is PRODUCTION")
 

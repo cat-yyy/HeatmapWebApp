@@ -80,16 +80,11 @@ def add_test_data():
     events=[Event.parse_obj(e) for e in data]
     insert_events(events)
 
-@app.get("/api/locations")
-def get_locations():
-    return[
-        {"lat": 34.702531148305304, "lng": 135.49615660876},  # 新宿
-        {"lat": 34.702293803172104, "lng": 135.4961114995631},  # 東京タワー
-        {"lat": 34.70259419299029, "lng": 135.4951258635975},  # 渋谷
-        {"lat": 34.7021658590272,  "lng": 135.4953874969393},  # 秋葉原
-    ]
+#DB環境 本番⇔テスト の切り替え
+@app.get("/switch_db_config")
+def switch_db_mode():
+    app_state.switch_db_config()
+    return {"msg":"db_config swithced"}
 
 
-# @app.get("/get_google_maps_api_key")
-# def get_google_maps_api_key():
-#     return {"api_key":app_state.google_maps_api_key}
+
