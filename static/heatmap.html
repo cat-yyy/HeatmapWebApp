@@ -1,130 +1,387 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <meta charset="utf-8">
-  <title>車両ヒートマップ</title>
-  <!-- CSS -->
-  <style>
-    body {
-      font-family: "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      background: #f4f6f9;
-    }
-    #map { width: 100%; height: 600px; }
-    #controls {
-      background: #fff;
-      padding: 15px 20px;
-      margin: 15px auto;
-      width: 90%;
-      max-width: 900px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      align-items: center;
-    }
-    #controls label { font-weight: bold; margin-right: 5px; }
-    select, input, button {
-      padding: 6px 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-    button {
-      background: #007bff;
-      color: white;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-    button:hover { background: #0056b3; }
-  </style>
-  <!-- CSSここまで -->
-</head>
+    <meta charset="utf-8">
+    <title>車両ヒートマップ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            background: #f4f6f9;
+        }
+
+        #map {
+            width: 100%;
+            height: 600px;
+        }
+
+        #controls {
+            background: #fff;
+            padding: 15px 20px;
+            margin: 15px auto;
+            width: 90%;
+            max-width: 900px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #controls label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        select,
+        input,
+        button {
+            padding: 6px 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+    </head>
+
 <body>
 
-  <div id="controls">
-    <label for="vehicleSelect">車両種類:</label>
-    <select id="vehicleSelect" onchange="updateHeatmap(this.value)">
-      <option value="All">All</option>
-    </select>
-    <label for="start">開始:</label>
-    <input type="datetime-local" id="start">
-    <label for="end">終了:</label>
-    <input type="datetime-local" id="end">
-    <button onclick="applyFilter()">適用</button>
-  </div>
-  <div id="map"></div>
+    <label>
+        <button id="testButton"> テストデータ挿入</button>
+    </label>
 
-  <script>
-    const GOOGLE_MAPS_API_KEY="{{google_maps_api_key}}";
-  </script>
+    <labe>
+        <button id="deleteButton">データ全削除</button>
+    </labe>
 
-  <script src="https://maps.googleapis.com/maps/api/js?key=&libraries=visualization&callback=initMap" async defer></script>
+    <p>DBの環境を切り替える ※テスト環境で動作させるにはローカルサーバーが必要です</p>
+    <form id="switch_db_env">
+        <label>
+            <input type="radio" name="db_env" value="production" checked>
+            本番
+        </label>
+        <label>
+            <input type="radio" name="db_env" value="test">
+            テスト
+        </label>
+    </form>
+
+    <div id="controls">
+        <label for="vehicleSelect">車両種類:</label>
+        <select id="vehicleSelect" onchange="updateHeatmapAndChart(this.value)">
+            <option value="All">All</option>
+        </select>
+        <label for="start">開始:</label>
+        <input type="datetime-local" id="start">
+        <label for="end">終了:</label>
+        <input type="datetime-local" id="end">
+        <button onclick="applyFilter()">適用</button>
+    </div>
+    <div id="map"></div>
+    <canvas id="myChart"></canvas>
+
+    <script>
+        let map, heatmap, allEvents = [];
+        let myChart; // グラフインスタンスを管理するグローバル変数
+        // 車種名と色のマッピングを保持するオブジェクト
+        const vehicleColorMap = {};
+        // 事前に用意された10色の配列
+        const presetColors = [
+            'rgba(255, 99, 132, 0.8)', // 赤
+            'rgba(54, 162, 235, 0.8)', // 青
+            'rgba(255, 206, 86, 0.8)', // 黄
+            'rgba(75, 192, 192, 0.8)', // 緑
+            'rgba(153, 102, 255, 0.8)',// 紫
+            'rgba(255, 159, 64, 0.8)', // オレンジ
+            'rgba(201, 203, 207, 0.8)', // グレー
+            'rgba(102, 255, 102, 0.8)', // ライトグリーン
+            'rgba(255, 102, 255, 0.8)', // マゼンタ
+            'rgba(102, 255, 255, 0.8)'  // シアン
+        ];
+        let colorIndex = 0; // 色のインデックス
+
+        //データ削除ボタン
+        const deleteBtn = document.getElementById("deleteButton");
+        deleteBtn.addEventListener("click", () => {
+            console.log("デリートボタンが押された");
+            deleteData();
+        });
+
+        //テストデータ追加ボタン
+        const addBtn = document.getElementById("testButton");
+        addBtn.addEventListener("click", () => {
+            console.log("テストボタンが押された");
+            addTestData();
+        });
 
 
-  <script>
-    let map, heatmap, allEvents = [];
+        //ラジオボタンの切り替えにリスナーを設定
+        document.querySelectorAll('input[name="db_env"]').forEach(radio => {
+            radio.addEventListener("change", (event) => {
+                const value = event.target.value;
+                console.log("選択された値:", value)
+                switchDvEnv(value);
+            });
+        });
 
-    async function fetchEvents(start = null, end = null) {
-      let url = "/get_events";
-      if (start && end) {
-        url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-      }
-      const res = await fetch(url);
-      const data = await res.json();
-      allEvents = data;
-      updateDropdown(data);
-      updateHeatmap(document.getElementById("vehicleSelect").value);
-    }
+        //データ削除メソッド
+        function deleteData() {
+            url = `/delete_events`;
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("データ削除失敗");
+                    }
+                    console.log("データ削除成功");
+                    return fetchEvents();
+                })
+                .catch(error => {
+                    console.error("エラー:", error);
+                });
+        }
 
-    function updateDropdown(data) {
-      const select = document.getElementById("vehicleSelect");
-      const names = [...new Set(data.map(e => e.name))];
-      select.innerHTML = "<option value='All'>All</option>";
-      names.forEach(name => {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-      });
-    }
+        //テストデータ追加のメソッド
+        function addTestData() {
+            url = `/add_test_data`;
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("テストデータ追加失敗")
+                    }
+                    console.log("テストデータ追加成功");
+                    return fetchEvents();
+                })
+                .catch(error => {
+                    console.error("エラー:", error);
+                });
+        }
 
-    function updateHeatmap(vehicleType) {
-      let filtered = allEvents;
-      if (vehicleType !== "All") {
-        filtered = allEvents.filter(e => e.name === vehicleType);
-      }
-      const heatmapData = filtered.map(e =>
-        new google.maps.LatLng(e.location.lat, e.location.lon)
-      );
-      heatmap.setData(heatmapData);
-    }
 
-    function applyFilter() {
-      const start = document.getElementById("start").value;
-      const end = document.getElementById("end").value;
-      fetchEvents(start, end);
-    }
+        //ラジオボタン切り替え時に呼び出すメソッド
+        function switchDvEnv(env) {
+            url = `/switch_db_env?db_env=${env}`;
+            console.log("switch_db_envリクエスト送信");
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("db_env切り替え失敗");
+                    }
+                    console.log("db_env切り替え成功");
+                    return fetchEvents();
+                })
+                .catch(error => {
+                    console.error("エラー:", error);
+                });
 
-    async function initMap() {
-      // マップとヒートマップの初期化
-      map=new google.maps.Map(document.getElementById("map"),{
-        zoom: 16,
-        center: { lat: 34.702485, lng: 135.495951 }, // 大阪駅
-      });
+        }
 
-      heatmap = new google.maps.visualization.HeatmapLayer({
-        data: [],
-        map: map
-      });
+        // Google Maps APIを動的にロードする関数
+        function loadGoogleMapsScript() {
+            return new Promise((resolve, reject) => {
+                const scriptUrl = "/api/get_maps_data?language=ja";
+                const script = document.createElement("script");
+                script.src = scriptUrl;
+                script.async = true;
+                script.defer = true;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
 
-      // イベント取得
-      await fetchEvents();
-    }
+        //指定期間のイベントをリクエスト
+        async function fetchEvents(start = null, end = null) {
+            let url = "/get_events";
+            if (start && end) {
+                url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+            }
+            const res = await fetch(url);
+            const data = await res.json();
+            allEvents = data;
+            updateDropdown(data);
+            updateHeatmapAndChart(document.getElementById("vehicleSelect").value);
+        }
 
-    window.initMap=initMap;
-  </script>
+        //ドロップダウンメニューの更新
+        function updateDropdown(data) {
+            const select = document.getElementById("vehicleSelect");
+            const names = [...new Set(data.map(e => e.name))];
+            select.innerHTML = "<option value='All'>All</option>";
+            names.forEach(name => {
+                const opt = document.createElement("option");
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+
+        // ヒートマップとグラフの両方を更新する関数
+        function updateHeatmapAndChart(vehicleType) {
+            let filtered = allEvents;
+            if (vehicleType !== "All") {
+                filtered = allEvents.filter(e => e.name === vehicleType);
+            }
+            // ヒートマップを更新
+            updateHeatmap(filtered);
+            // グラフを更新
+            processEvents(filtered);
+        }
+
+        //グローバル変数allEventsから引数指定と一致するデータを抽出
+        function updateHeatmap(filtered) {
+            if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                console.error("Google Maps API is not loaded yet.");
+                return;
+            }
+            // ヒートマップデータが空の場合は処理をスキップ
+            if (filtered.length === 0) {
+                heatmap.setData([]);
+                return;
+            }
+
+            const heatmapData = filtered.map(e =>
+                new google.maps.LatLng(e.location.lat, e.location.lon)
+            );
+            heatmap.setData(heatmapData);
+        }
+
+        function applyFilter() {
+            const start = document.getElementById("start").value;
+            const end = document.getElementById("end").value;
+            fetchEvents(start, end);
+        }
+
+        async function initMap() {
+            // マップとヒートマップの初期化
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 16,
+                center: { lat: 34.702485, lng: 135.495951 }, // 大阪駅
+            });
+
+            heatmap = new google.maps.visualization.HeatmapLayer({
+                data: [],
+                map: map
+            });
+
+            // マップの初期化後にデータを取得しヒートマップを更新
+            await fetchEvents();
+        }
+
+        // データを集計・加工するメソッド
+        function processEvents(events) {
+            const hourlyData = {};
+
+            // データを時間帯と車種ごとに集計
+            events.forEach(event => {
+                const date = new Date(event.pushed_timestamp);
+                const hour = date.getHours();
+                const vehicleName = event.name;
+
+                if (!hourlyData[hour]) {
+                    hourlyData[hour] = {};
+                }
+                if (!hourlyData[hour][vehicleName]) {
+                    hourlyData[hour][vehicleName] = 0;
+                }
+                hourlyData[hour][vehicleName]++;
+            });
+
+            // 全ての時間帯と車種を取得
+            const allHours = Object.keys(hourlyData).sort((a, b) => a - b);
+            const allNames = [...new Set(events.map(e => e.name))].sort();
+
+            // グラフ描画用のデータセットを作成
+            const datasets = allNames.map(vehicle => {
+                const data = allHours.map(hour => {
+                    return hourlyData[hour][vehicle] || 0;
+                });
+                return {
+                    label: vehicle,
+                    data: data,
+                    backgroundColor: getVehicleColor(vehicle)
+                };
+            });
+
+            const chartData = {
+                labels: allHours.map(h => `${h}:00`),
+                datasets: datasets
+            };
+
+            // グラフ描画関数を呼び出す
+            drawChart(chartData);
+        }
+
+        // 車種名に基づいて色を返す関数（動的割り当て版）
+        function getVehicleColor(vehicle) {
+            // 既に色が割り当てられていればそれを返す
+            if (vehicleColorMap[vehicle]) {
+                return vehicleColorMap[vehicle];
+            }
+            // 新しい車種に色を割り当てて保存する
+            const color = presetColors[colorIndex % presetColors.length];
+            vehicleColorMap[vehicle] = color;
+            colorIndex++;
+            return color;
+        }
+
+        // グラフを描画する関数
+        function drawChart(chartData) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+
+            // 既存のグラフインスタンスがあれば破棄
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: '時間帯'
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            title: {
+                                display: true,
+                                text: 'イベント数'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ページロード時にスクリプトをロード
+        loadGoogleMapsScript().then(() => {
+            window.initMap = initMap;
+            initMap();
+        }).catch(error => {
+            console.error("Failed to load Google Maps script:", error);
+        });
+    </script>
 </body>
+
 </html>

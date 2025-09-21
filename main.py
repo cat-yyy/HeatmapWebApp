@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from datetime import datetime
 from app_state import AppState
+import requests
 
 app=FastAPI()
 
@@ -60,7 +61,7 @@ def get_events(
         #DBから取得した全イベントをEvent形式に変換してlistとしてまとめる
         db_events=dao.get_events_by_period(start,end)
         events=get_list(db_events)
-        print(events)
+        print(f"number of records :{len(events)}")
     return events
 
 #DBから全レコードを削除
@@ -74,17 +75,41 @@ def delete_events():
 #テスト用データの追加
 @app.get("/add_test_data")
 def add_test_data():
-    with open("sample_events.json","r",encoding="utf-8") as f:
+    with open("events.json","r",encoding="utf-8") as f:
         data=json.load(f)
     #JSON→List[Event]に変換
     events=[Event.parse_obj(e) for e in data]
     insert_events(events)
 
 #DB環境 本番⇔テスト の切り替え
-@app.get("/switch_db_config")
-def switch_db_mode():
-    app_state.switch_db_config()
+@app.get("/switch_db_env")
+def switch_db_env(db_env:str):
+    app_state.set_db_config(db_env)
     return {"msg":"db_config swithced"}
 
+@app.get("/api/get_maps_data")
+def get_maps_data(request: Request):
+    #フロントエンドからのリクエストパラメータを取得
+    query_params=request.query_params
+
+    #Google Maps APIキーを取得
+    google_maps_api_key=AppState.google_maps_api_key
+    if not google_maps_api_key:
+        return {"error: API KEY not found"}
+    
+    #APIへリクエストするURL
+    url=f"https://maps.googleapis.com/maps/api/js?key={google_maps_api_key}&libraries=visualization"
+
+    try:
+        #APIへリクエスト
+        response=requests.get(url)
+        #HTTPエラーが発生したら例外をスロー
+        response.raise_for_status()
+
+        #取得したjsのコードをフロント返す
+        return HTMLResponse(content=response.text,status_code=response.status_code)
+    
+    except requests.exceptions.RequestException as e:
+        return {"error":f"Failed to fetch from Google Maps API:{e}"}
 
 

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>車両ヒートマップ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f6f8fc;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ヘッダー */
+    header {
+      height: 60px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .logo {
+      font-weight: bold;
+      font-size: 20px;
+      color: #007bff;
+      margin-right: 20px;
+    }
+
+    /* ヘッダー内のフィルターUI */
+    #controls {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      background: #f1f3f4;
+      border-radius: 24px;
+      padding: 6px 12px;
+      max-width: 800px;
+    }
+    #controls label { font-weight: bold; margin-right: 5px; }
+    select, input, button {
+      padding: 6px 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: 0.3s;
+      border: none;
+    }
+    button:hover { background: #0056b3; }
+
+    /* メイン全体 */
+    main {
+      flex: 1;
+      display: flex;
+      margin-top: 60px; /* ヘッダー分下げる */
+    }
+
+    /* 左サイドバー */
+    nav {
+      width: 220px;
+      background: #fff;
+      border-right: 1px solid #e0e0e0;
+      position: fixed;
+      top: 60px;
+      bottom: 0;
+      overflow-y: auto;
+      padding: 12px 0;
+    }
+
+    nav .menu-group {
+      padding: 0 16px;
+      margin-bottom: 20px;
+    }
+nav button, nav label {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 16px; /* フォントサイズの統一 */
+  color: #333; /* テキストカラーの統一 */
+}
+
+nav label {
+  display: flex;              /* 横並び */
+  align-items: center;        /* 縦中央揃え */
+  gap: 8px;                   /* ボタンとテキストの間隔 */
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 16px;
+  color: #333;
+}
+
+
+/* ホバー時のスタイルも統一 */
+nav button:hover, nav label:hover {
+  background: #e8f0fe;
+}
+
+
+    /* メインコンテンツ */
+    section {
+      flex: 1;
+      margin-left: 220px; /* サイドバー分ずらす */
+      padding: 0;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+r
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <!-- ヘッダー -->
+  <header>
+    <div class="logo">🚗 車両ヒートマップ</div>
+    <div id="controls">
+      <label for="vehicleSelect">車両種類:</label>
+      <select id="vehicleSelect" onchange="updateHeatmap(this.value)">
+        <option value="All">All</option>
+      </select>
+      <label for="start">開始:</label>
+      <input type="datetime-local" id="start">
+      <label for="end">終了:</label>
+      <input type="datetime-local" id="end">
+      <button onclick="applyFilter()">適用</button>
+    </div>
+  </header>
+
+  <!-- メイン -->
+  <main>
+    <!-- サイドバー -->
+    <nav>
+      <div class="menu-group"> <p><strong>DB環境切替</strong></p>
+        <button id="testButton">テストデータ挿入</button>
+        <button id="deleteButton">データ全削除</button>
+      </div>
+      <div class="menu-group">
+        <p><strong>DB環境切替</strong></p>
+        <label>
+          <input type="radio" name="db_env" value="production" checked>
+          本番
+        </label>
+        <label>
+          <input type="radio" name="db_env" value="test">
+          テスト
+        </label>
+      </div>
+    </nav>
+
+    <!-- コンテンツエリア -->
+    <section>
+      <div id="map"></div>
+    </section>
+  </main>
+
+  <!-- JS (既存のまま) -->
+  <script>
+    let map, heatmap, allEvents = [];
+
+    // データ削除ボタン
+    document.getElementById("deleteButton").addEventListener("click",()=>{
+      console.log("デリートボタンが押された");
+      deleteData();
+    });
+
+    // テストデータ追加ボタン
+    document.getElementById("testButton").addEventListener("click",()=>{
+      console.log("テストボタンが押された");
+      addTestData();
+    });
+
+    // ラジオボタン切り替え
+    document.querySelectorAll('input[name="db_env"]').forEach(radio=>{
+      radio.addEventListener("change",(event)=>{
+        const value=event.target.value;
+        console.log("選択された値:",value)
+        switchDvEnv(value);
+      });
+    });
+
+    // データ削除メソッド
+    function deleteData(){
+      fetch(`/delete_events`)
+        .then(response=>{
+          if(!response.ok) throw new Error("データ削除失敗");
+          console.log("データ削除成功");
+          return fetchEvents();
+        })
+        .catch(error=>console.error("エラー:",error));
+    }
+
+    // テストデータ追加
+    function addTestData(){
+      fetch(`/add_test_data`)
+        .then(response=>{
+          if(!response.ok) throw new Error("テストデータ追加失敗");
+          console.log("テストデータ追加成功");
+          return fetchEvents();
+        })
+        .catch(error=>console.error("エラー:",error));
+    }
+
+    // DB切替
+    function switchDvEnv(env){
+      fetch(`/switch_db_env?db_env=${env}`)
+        .then(response=>{
+          if(!response.ok) throw new Error("db_env切り替え失敗");
+          console.log("db_env切り替え成功");
+          return fetchEvents();
+        })
+        .catch(error=>console.error("エラー:",error));
+    }
+
+    // Google Maps APIロード
+    function loadGoogleMapsScript() {
+      return new Promise((resolve, reject) => {
+        const scriptUrl = "/api/get_maps_data?language=ja";
+        const script = document.createElement("script");
+        script.src = scriptUrl;
+        script.async = true;
+        script.defer = true;
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    async function fetchEvents(start = null, end = null) {
+      let url = "/get_events";
+      if (start && end) {
+        url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      }
+      const res = await fetch(url);
+      const data = await res.json();
+      allEvents = data;
+      updateDropdown(data);
+      updateHeatmap(document.getElementById("vehicleSelect").value);
+    }
+
+    function updateDropdown(data) {
+      const select = document.getElementById("vehicleSelect");
+      const names = [...new Set(data.map(e => e.name))];
+      select.innerHTML = "<option value='All'>All</option>";
+      names.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+
+    function updateHeatmap(vehicleType) {
+      if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+        console.error("Google Maps API is not loaded yet.");
+        return;
+      }
+      let filtered = allEvents;
+      if (vehicleType !== "All") {
+        filtered = allEvents.filter(e => e.name === vehicleType);
+      }
+      if (filtered.length === 0) {
+        heatmap.setData([]);
+        return;
+      }
+      const heatmapData = filtered.map(e =>
+        new google.maps.LatLng(e.location.lat, e.location.lon)
+      );
+      heatmap.setData(heatmapData);
+    }
+
+    function applyFilter() {
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      fetchEvents(start, end);
+    }
+
+    async function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 16,
+        center: { lat: 34.702485, lng: 135.495951 }, // 大阪駅
+      });
+      heatmap = new google.maps.visualization.HeatmapLayer({
+        data: [],
+        map: map
+      });
+      await fetchEvents();
+    }
+
+    loadGoogleMapsScript().then(() => {
+      window.initMap = initMap;
+      initMap();
+    }).catch(error => {
+      console.error("Failed to load Google Maps script:", error);
+    });
+  </script>
+</body>
+</html>
