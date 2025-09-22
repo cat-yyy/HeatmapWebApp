@@ -6,3 +6,4 @@ pydantic
 PyYAML
 jinja2
 requests
+google-genai
