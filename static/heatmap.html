@@ -1,421 +1,82 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <title>車両ヒートマップダッシュボード</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            font-family: "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            background: #e9eef6;
-            color: #333;
-        }
+    <link rel="stylesheet" href="/static/style.css">
 
-        .flex-container {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        #sidebar {
-            width: 300px;
-            background: #ffffff;
-            padding: 20px;
-            box-shadow: 2px 0 6px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        #main-content {
-            flex-grow: 1;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .dashboard-card {
-            background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            padding: 20px;
-        }
-
-        h2 {
-            font-size: 1.2rem;
-            color: #1a237e;
-            margin-top: 0;
-            border-bottom: 2px solid #e0e0e0;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-        }
-
-        #map {
-            width: 100%;
-            height: 600px;
-            border-radius: 8px;
-        }
-
-        #myChart {
-            width: 100%;
-            height: 400px; /* グラフの高さを固定 */
-        }
-
-        label {
-            font-weight: bold;
-            margin-right: 5px;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        select, input[type="datetime-local"], button {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-
-        button {
-            color: white;
-            cursor: pointer;
-            transition: 0.3s;
-            border: none;
-        }
-
-        #testButton,#apply{
-            background: #007bff;
-
-        }
-
-        #deleteButton{
-            background: #ff3333;
-        }
-
-        button:hover {
-            background: #0056b3;
-        }
-
-        .radio-group {
-            display: flex;
-            gap: 15px;
-        }
-
-        .radio-group label {
-            font-weight: normal;
-        }
-    </style>
 </head>
+
 <body>
 
-<div class="flex-container">
+    <div class="flex-container">
 
-    <div id="sidebar">
-        <div class="dashboard-card">
-            <h2>データ操作(サンプルデータなので好きに挿入、削除して問題ありません)</h2>
-            <button id="testButton">テストデータ挿入</button>
-            <button id="deleteButton">データ全削除</button>
+        <div id="sidebar">
+            <div class="dashboard-card">
+                <h2>データ操作(サンプルデータなので好きに挿入、削除して問題ありません)</h2>
+                <button id="testButton">テストデータ挿入</button>
+                <button id="deleteButton">データ全削除</button>
+            </div>
+
+            <div class="dashboard-card">
+                <h2>データベース環境</h2>
+                <p style="font-size: 0.9em; margin-top: -10px; color: #555;">※テスト環境はローカルサーバーが必要です</p>
+                <form id="switch_db_env">
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="db_env" value="production" checked>
+                            本番
+                        </label>
+                        <label>
+                            <input type="radio" name="db_env" value="test">
+                            テスト
+                        </label>
+                    </div>
+                </form>
+            </div>
+
+            <div class="dashboard-card">
+                <h2>フィルター設定</h2>
+                <label for="vehicleSelect">車両種類:</label>
+                <select id="vehicleSelect">
+                    <option value="All">All</option>
+                </select>
+                <label for="start">開始日時:</label>
+                <input type="datetime-local" id="start">
+                <label for="end">終了日時:</label>
+                <input type="datetime-local" id="end">
+                <button id="filterButton">適用</button>
+            </div>
         </div>
 
-        <div class="dashboard-card">
-            <h2>データベース環境</h2>
-            <p style="font-size: 0.9em; margin-top: -10px; color: #555;">※テスト環境はローカルサーバーが必要です</p>
-            <form id="switch_db_env">
-                <div class="radio-group">
-                    <label>
-                        <input type="radio" name="db_env" value="production" checked>
-                        本番
-                    </label>
-                    <label>
-                        <input type="radio" name="db_env" value="test">
-                        テスト
-                    </label>
-                </div>
-            </form>
+        <div id="main-content">
+            <div class="dashboard-card">
+                <h2>車両ヒートマップ</h2>
+                <div id="map"></div>
+            </div>
+            <div class="dashboard-card">
+                <h2>時間別イベント数</h2>
+                <canvas id="myChart"></canvas>
+            </div>
+        <div class="analayzing dashboard-card">
+            <h2>AIの分析レポート</h2>
+        <div id="ai">
         </div>
-
-        <div class="dashboard-card">
-            <h2>フィルター設定</h2>
-            <label for="vehicleSelect">車両種類:</label>
-            <select id="vehicleSelect" onchange="updateHeatmapAndChart(this.value)">
-                <option value="All">All</option>
-            </select>
-            <label for="start">開始日時:</label>
-            <input type="datetime-local" id="start">
-            <label for="end">終了日時:</label>
-            <input type="datetime-local" id="end">
-            <button id=apply onclick="applyFilter()">適用</button>
-        </div>
-    </div>
-
-    <div id="main-content">
-        <div class="dashboard-card">
-            <h2>車両ヒートマップ</h2>
-            <div id="map"></div>
-        </div>
-        <div class="dashboard-card">
-            <h2>時間別イベント数</h2>
-            <canvas id="myChart"></canvas>
-        </div>
-    </div>
-
 </div>
 
-<script>
-    let map, heatmap, allEvents = [];
-    let myChart;
-    const vehicleColorMap = {};
-    const presetColors = [
-        'rgba(255, 99, 132, 0.8)',
-        'rgba(54, 162, 235, 0.8)',
-        'rgba(255, 206, 86, 0.8)',
-        'rgba(75, 192, 192, 0.8)',
-        'rgba(153, 102, 255, 0.8)',
-        'rgba(255, 159, 64, 0.8)',
-        'rgba(201, 203, 207, 0.8)',
-        'rgba(102, 255, 102, 0.8)',
-        'rgba(255, 102, 255, 0.8)',
-        'rgba(102, 255, 255, 0.8)'
-    ];
-    let colorIndex = 0;
 
-    const deleteBtn = document.getElementById("deleteButton");
-    deleteBtn.addEventListener("click", () => {
-        console.log("デリートボタンが押された");
-        deleteData();
-    });
+                </div>
+            </div>
+        </div>
 
-    const addBtn = document.getElementById("testButton");
-    addBtn.addEventListener("click", () => {
-        console.log("テストボタンが押された");
-        addTestData();
-    });
+    </div>
 
-    document.querySelectorAll('input[name="db_env"]').forEach(radio => {
-        radio.addEventListener("change", (event) => {
-            const value = event.target.value;
-            console.log("選択された値:", value)
-            switchDvEnv(value);
-        });
-    });
 
-    function deleteData() {
-        url = `/delete_events`;
-        fetch(url,{method:"DELETE"})
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("データ削除失敗");
-                }
-                console.log("データ削除成功");
-                return fetchEvents();
-            })
-            .catch(error => {
-                console.error("エラー:", error);
-            });
-    }
 
-    function addTestData() {
-        url = `/add_test_data`;
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("テストデータ追加失敗")
-                }
-                console.log("テストデータ追加成功");
-                return fetchEvents();
-            })
-            .catch(error => {
-                console.error("エラー:", error);
-            });
-    }
-
-    function switchDvEnv(env) {
-        url = `/switch_db_env?db_env=${env}`;
-        console.log("switch_db_envリクエスト送信");
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("db_env切り替え失敗");
-                }
-                console.log("db_env切り替え成功");
-                return fetchEvents();
-            })
-            .catch(error => {
-                console.error("エラー:", error);
-            });
-    }
-
-    function loadGoogleMapsScript() {
-        return new Promise((resolve, reject) => {
-            const scriptUrl = "/api/get_maps_data?language=ja";
-            const script = document.createElement("script");
-            script.src = scriptUrl;
-            script.async = true;
-            script.defer = true;
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-    }
-
-    async function fetchEvents(start = null, end = null) {
-        let url = "/get_events";
-        if (start && end) {
-            url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
-        }
-        const res = await fetch(url);
-        const data = await res.json();
-        allEvents = data;
-        updateDropdown(data);
-        updateHeatmapAndChart(document.getElementById("vehicleSelect").value);
-    }
-
-    function updateDropdown(data) {
-        const select = document.getElementById("vehicleSelect");
-        const names = [...new Set(data.map(e => e.name))];
-        select.innerHTML = "<option value='All'>All</option>";
-        names.forEach(name => {
-            const opt = document.createElement("option");
-            opt.value = name;
-            opt.textContent = name;
-            select.appendChild(opt);
-        });
-    }
-
-    function updateHeatmapAndChart(vehicleType) {
-        let filtered = allEvents;
-        if (vehicleType !== "All") {
-            filtered = allEvents.filter(e => e.name === vehicleType);
-        }
-        updateHeatmap(filtered);
-        processEvents(filtered);
-    }
-
-    function updateHeatmap(filtered) {
-        if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
-            console.error("Google Maps API is not loaded yet.");
-            return;
-        }
-        if (filtered.length === 0) {
-            heatmap.setData([]);
-            return;
-        }
-        const heatmapData = filtered.map(e =>
-            new google.maps.LatLng(e.location.lat, e.location.lon)
-        );
-        heatmap.setData(heatmapData);
-    }
-
-    function applyFilter() {
-        const start = document.getElementById("start").value;
-        const end = document.getElementById("end").value;
-        fetchEvents(start, end);
-    }
-
-    async function initMap() {
-        map = new google.maps.Map(document.getElementById("map"), {
-            zoom: 16,
-            center: { lat: 34.702485, lng: 135.495951 },
-        });
-
-        heatmap = new google.maps.visualization.HeatmapLayer({
-            data: [],
-            map: map
-        });
-
-        await fetchEvents();
-    }
-
-    function processEvents(events) {
-        const hourlyData = {};
-        events.forEach(event => {
-            const date = new Date(event.pushed_timestamp);
-            const hour = date.getHours();
-            const vehicleName = event.name;
-
-            if (!hourlyData[hour]) {
-                hourlyData[hour] = {};
-            }
-            if (!hourlyData[hour][vehicleName]) {
-                hourlyData[hour][vehicleName] = 0;
-            }
-            hourlyData[hour][vehicleName]++;
-        });
-
-        const allHours = Object.keys(hourlyData).sort((a, b) => a - b);
-        const allNames = [...new Set(events.map(e => e.name))].sort();
-
-        const datasets = allNames.map(vehicle => {
-            const data = allHours.map(hour => {
-                return hourlyData[hour][vehicle] || 0;
-            });
-            return {
-                label: vehicle,
-                data: data,
-                backgroundColor: getVehicleColor(vehicle)
-            };
-        });
-
-        const chartData = {
-            labels: allHours.map(h => `${h}:00`),
-            datasets: datasets
-        };
-
-        drawChart(chartData);
-    }
-
-    function getVehicleColor(vehicle) {
-        if (vehicleColorMap[vehicle]) {
-            return vehicleColorMap[vehicle];
-        }
-        const color = presetColors[colorIndex % presetColors.length];
-        vehicleColorMap[vehicle] = color;
-        colorIndex++;
-        return color;
-    }
-
-    function drawChart(chartData) {
-        const ctx = document.getElementById('myChart').getContext('2d');
-        if (myChart) {
-            myChart.destroy();
-        }
-        myChart = new Chart(ctx, {
-            type: 'bar',
-            data: chartData,
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                scales: {
-                    x: {
-                        stacked: true,
-                        title: {
-                            display: true,
-                            text: '時間帯'
-                        }
-                    },
-                    y: {
-                        stacked: true,
-                        title: {
-                            display: true,
-                            text: 'イベント数'
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    loadGoogleMapsScript().then(() => {
-        window.initMap = initMap;
-        initMap();
-    }).catch(error => {
-        console.error("Failed to load Google Maps script:", error);
-    });
-</script>
-
+    <script type=module src="/static/script.js"></script>
 </body>
+
 </html>
