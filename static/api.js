@@ -1,44 +1,60 @@
 import { heatmap } from "./map.js";
-import { processEvents} from "./chart.js"
+import { processEvents } from "./chart.js";
 
 export let allEvents = [];
 
+/* ---------- 共通ローディング制御 ---------- */
+export function showLoading(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add("active");
+}
+
+export function hideLoading(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("active");
+}
+
+/* ---------- Gemini API ---------- */
 // /api/aiへのポストリクエスト、結果をJSONで返す
 export async function getGeminiResponse(data) {
     const url = `/api/ai`;
     try {
         const response = await fetch(url, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(data) //文字列に変換
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
         });
         const jsonData = await response.json();
         console.log(data);
         return jsonData;
-
     } catch (err) {
         console.error("/api/aiへのリクエスト失敗", err);
     }
-
 }
 
 // Geminiからのレスポンスをtextで描画する
-export async function renderGeminiText(data){
-    const response= await getGeminiResponse(data);
-    // JSONを文字列化して見やすく整形
-    const text = JSON.stringify(response, null, 2);
-    //ai IDのテキストを更新
-    document.getElementById("ai").textContent=text;
+export async function renderGeminiText(data) {
+    showLoading("ai-loading");
+    try {
+        const response = await getGeminiResponse(data);
+        const text = JSON.stringify(response, null, 2);
+        document.getElementById("ai").textContent = text;
+    } finally {
+        hideLoading("ai-loading");
+    }
 }
 
+/* ---------- DB操作 ---------- */
 export function addTestData() {
+    showLoading("map-loading");
+    showLoading("chart-loading");
+    showLoading("ai-loading");
+
     const url = `/add_test_data`;
     fetch(url)
         .then(response => {
             if (!response.ok) {
-                throw new Error("テストデータ追加失敗")
+                throw new Error("テストデータ追加失敗");
             }
             console.log("テストデータ追加成功");
             return fetchEvents();
@@ -48,8 +64,11 @@ export function addTestData() {
         });
 }
 
-//DB環境切り替え
 export function switchDvEnv(env) {
+    showLoading("map-loading");
+    showLoading("chart-loading");
+    showLoading("ai-loading");
+
     const url = `/switch_db_env?db_env=${env}`;
     console.log("switch_db_envリクエスト送信");
     fetch(url)
@@ -65,21 +84,43 @@ export function switchDvEnv(env) {
         });
 }
 
-//期間を指定してイベントを取得する
+/* ---------- イベント取得 ---------- */
 export async function fetchEvents(start = null, end = null) {
-    let url = "/get_events";
-    if (start && end) {
-        url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+    showLoading("map-loading");
+    showLoading("chart-loading");
+    showLoading("ai-loading");
+
+    try {
+        let url = "/get_events";
+        if (start && end) {
+            url += `?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+        allEvents = data;
+
+        updateDropdown(data);
+
+        // マップとチャート更新
+        updateHeatmapAndChart(document.getElementById("vehicleSelect").value);
+
+        // AI レポート更新
+        await renderGeminiText(allEvents);
+    } catch (err) {
+        console.error("イベント取得エラー:", err);
+    } finally {
+        hideLoading("map-loading");
+        hideLoading("chart-loading");
+        hideLoading("ai-loading");
     }
-    const res = await fetch(url);
-    const data = await res.json();
-    allEvents = data;
-    updateDropdown(data);
-    updateHeatmapAndChart(document.getElementById("vehicleSelect").value);
-    renderGeminiText(allEvents);
 }
 
+/* ---------- データ削除 ---------- */
 export function deleteData() {
+    showLoading("map-loading");
+    showLoading("chart-loading");
+    showLoading("ai-loading");
+
     const url = `/delete_events`;
     fetch(url, { method: "DELETE" })
         .then(response => {
@@ -94,6 +135,7 @@ export function deleteData() {
         });
 }
 
+/* ---------- Google Maps API ---------- */
 export function loadGoogleMapsScript() {
     return new Promise((resolve, reject) => {
         const scriptUrl = "/api/get_maps_data?language=ja";
@@ -107,7 +149,8 @@ export function loadGoogleMapsScript() {
     });
 }
 
-//ドロップダウンメニューの項目更新
+/* ---------- UI更新 ---------- */
+// ドロップダウンメニューの項目更新
 export function updateDropdown(data) {
     const select = document.getElementById("vehicleSelect");
     const names = [...new Set(data.map(e => e.name))];
@@ -120,17 +163,23 @@ export function updateDropdown(data) {
     });
 }
 
-//ヒートマップとチャートの更新
+// ヒートマップとチャートの更新
 export function updateHeatmapAndChart(vehicleType) {
+    showLoading("map-loading");
+    showLoading("chart-loading");
+
     let filtered = allEvents;
     if (vehicleType !== "All") {
         filtered = allEvents.filter(e => e.name === vehicleType);
     }
     updateHeatmap(filtered);
     processEvents(filtered);
+
+    hideLoading("map-loading");
+    hideLoading("chart-loading");
 }
 
-//マップにフィルターを適用する
+// マップにフィルターを適用する
 export function applyFilter() {
     const start = document.getElementById("start").value;
     const end = document.getElementById("end").value;

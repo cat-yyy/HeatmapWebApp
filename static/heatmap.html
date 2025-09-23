@@ -7,7 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="/static/style.css">
-
 </head>
 
 <body>
@@ -16,14 +15,14 @@
 
         <div id="sidebar">
             <div class="dashboard-card">
-                <h2>データ操作(サンプルデータなので好きに挿入、削除して問題ありません)</h2>
+                <h2>データ操作</h2>
                 <button id="testButton">テストデータ挿入</button>
                 <button id="deleteButton">データ全削除</button>
             </div>
 
             <div class="dashboard-card">
                 <h2>データベース環境</h2>
-                <p style="font-size: 0.9em; margin-top: -10px; color: #555;">※テスト環境はローカルサーバーが必要です</p>
+                <p style="font-size: 0.9em; margin-top: -10px; color: #aaa;">※テスト環境はローカルサーバーが必要です</p>
                 <form id="switch_db_env">
                     <div class="radio-group">
                         <label>
@@ -53,30 +52,38 @@
         </div>
 
         <div id="main-content">
-            <div class="dashboard-card">
+
+            <div class="dashboard-card" style="position: relative;">
                 <h2>車両ヒートマップ</h2>
+                <div class="loading-overlay" id="map-loading">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
+                </div>
                 <div id="map"></div>
             </div>
-            <div class="dashboard-card">
+
+            <div class="dashboard-card" style="position: relative;">
                 <h2>時間別イベント数</h2>
+                <div class="loading-overlay" id="chart-loading">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
+                </div>
                 <canvas id="myChart"></canvas>
             </div>
-        <div class="analayzing dashboard-card">
-            <h2>AIの分析レポート</h2>
-        <div id="ai">
-        </div>
-</div>
 
-
+            <div class="analayzing dashboard-card" style="position: relative;">
+                <h2>AI分析レポート</h2>
+                <div class="loading-overlay" id="ai-loading">
+                    <div class="spinner"></div>
+                    <p>Loading...</p>
                 </div>
+                <div id="ai"></div>
             </div>
-        </div>
 
+        </div>
     </div>
 
-
-
-    <script type=module src="/static/script.js"></script>
+    <script type="module" src="/static/script.js"></script>
 </body>
 
 </html>

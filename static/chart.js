@@ -48,6 +48,8 @@ export function drawChart(chartData) {
 
 export function processEvents(events) {
     const hourlyData = {};
+    
+    // イベントデータを時間帯と車両名ごとに集計
     events.forEach(event => {
         const date = new Date(event.pushed_timestamp);
         const hour = date.getHours();
@@ -62,12 +64,14 @@ export function processEvents(events) {
         hourlyData[hour][vehicleName]++;
     });
 
-    const allHours = Object.keys(hourlyData).sort((a, b) => a - b);
+    // 0時から23時までのすべての時間を配列で固定
+    const allHours = Array.from({length: 24}, (_, i) => i);
     const allNames = [...new Set(events.map(e => e.name))].sort();
 
     const datasets = allNames.map(vehicle => {
         const data = allHours.map(hour => {
-            return hourlyData[hour][vehicle] || 0;
+            // hourlyDataに該当データがなければ0を返す
+            return hourlyData[hour]?.[vehicle] || 0;
         });
         return {
             label: vehicle,
