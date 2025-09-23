@@ -105,23 +105,12 @@
         font-weight: normal;
     }
 
-    /* PCでの表示（例：画面幅が768px以上の場合） */
-    @media screen and (min-width: 768px) {
-        .map {
-            width: 400px;
-            height: 400px;
+    @media (max-width: 768px) {
+        .flex-container {
+            flex-direction: column;
         }
-        .myChart{
-            width: 600px;
-            height: 400px;
-        }
-    }
 
-    /* スマートフォンでの表示（例：画面幅が767px以下の場合） */
-    @media screen and (max-width: 767px) {
-        .large-map {
+        #sidebar {
             width: 100%;
-            /* 親要素の幅いっぱいに広げる */
-            height: auto;
         }
     }
